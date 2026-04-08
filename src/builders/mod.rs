@@ -1,0 +1,223 @@
+//! Builders module - generates configurations for different clients
+
+use crate::parsers::ProxyConfig;
+use serde_json::Value as JsonValue;
+use serde_yaml::Value as YamlValue;
+
+/// Build a simple Clash config with only proxy nodes and a simple selector
+pub fn build_simple_clash(proxies: &[ProxyConfig]) -> YamlValue {
+    use serde_yaml::Value;
+
+    let mut proxy_list: Vec<YamlValue> = Vec::new();
+    for proxy in proxies {
+        proxy_list.push(proxy.to_clash());
+    }
+
+    let mut proxy_names: Vec<YamlValue> = Vec::new();
+    for proxy in proxies {
+        proxy_names.push(YamlValue::String(proxy.name().to_string()));
+    }
+
+    // Build proxy groups
+    let mut proxy_groups: Vec<YamlValue> = Vec::new();
+
+    // Main selector group
+    let mut proxy_group = serde_yaml::Mapping::new();
+    proxy_group.insert(
+        Value::String("name".to_string()),
+        Value::String("Proxy".to_string())
+    );
+    proxy_group.insert(
+        Value::String("type".to_string()),
+        Value::String("selector".to_string())
+    );
+
+    let mut group_proxies: Vec<YamlValue> = vec![
+        Value::String("DIRECT".to_string()),
+        Value::String("REJECT".to_string()),
+    ];
+    group_proxies.extend(proxy_names.clone());
+    proxy_group.insert(
+        Value::String("proxies".to_string()),
+        Value::Sequence(group_proxies)
+    );
+    proxy_groups.push(Value::Mapping(proxy_group));
+
+    // Build config
+    let mut config = serde_yaml::Mapping::new();
+    config.insert(Value::String("port".to_string()), Value::Number(7890.into()));
+    config.insert(Value::String("socks-port".to_string()), Value::Number(7891.into()));
+    config.insert(Value::String("allow-lan".to_string()), Value::Bool(false));
+    config.insert(Value::String("mode".to_string()), Value::String("rule".to_string()));
+    config.insert(Value::String("log-level".to_string()), Value::String("info".to_string()));
+    config.insert(Value::String("proxies".to_string()), Value::Sequence(proxy_list));
+    config.insert(Value::String("proxy-groups".to_string()), Value::Sequence(proxy_groups));
+
+    // Simple rules: DNS direct, then everything through Proxy
+    let rules: Vec<YamlValue> = vec![
+        Value::String("PROTOCOL,DNS,DIRECT".to_string()),
+        Value::String("MATCH,Proxy".to_string()),
+    ];
+    config.insert(Value::String("rules".to_string()), Value::Sequence(rules));
+
+    Value::Mapping(config)
+}
+
+/// Build a simple Singbox config with only proxy nodes and a simple selector
+pub fn build_simple_singbox(proxies: &[ProxyConfig]) -> JsonValue {
+    use serde_json::json;
+
+    let mut outbounds = Vec::new();
+
+    // Add basic outbounds
+    outbounds.push(json!({"type": "block", "tag": "REJECT"}));
+    outbounds.push(json!({"type": "direct", "tag": "DIRECT"}));
+
+    // Add proxy outbounds
+    let mut proxy_names = Vec::new();
+    for proxy in proxies {
+        let mut singbox_proxy = proxy.to_singbox();
+        // Ensure tag is set
+        if let Some(obj) = singbox_proxy.as_object_mut() {
+            if !obj.contains_key("tag") {
+                obj.insert("tag".to_string(), json!(proxy.name()));
+            }
+        }
+        outbounds.push(singbox_proxy);
+        proxy_names.push(proxy.name().to_string());
+    }
+
+    // Add selector group
+    let mut selector_outbounds = vec!["DIRECT".to_string(), "REJECT".to_string()];
+    selector_outbounds.extend(proxy_names);
+
+    outbounds.push(json!({
+        "type": "selector",
+        "tag": "Proxy",
+        "outbounds": selector_outbounds
+    }));
+
+    json!({
+        "log": {
+            "level": "info"
+        },
+        "inbounds": [
+            { "type": "mixed", "tag": "mixed-in", "listen": "0.0.0.0", "listen_port": 2080 }
+        ],
+        "outbounds": outbounds,
+        "route": {
+            "rules": [
+                { "protocol": "dns", "action": "hijack-dns" },
+                { "outbound": " Proxy" },
+                { "outbound": "REJECT" }
+            ],
+            "final": "Proxy"
+        }
+    })
+}
+
+/// Build a simple Surge config with only proxy nodes and a simple selector
+pub fn build_simple_surge(proxies: &[ProxyConfig]) -> String {
+    let mut result = String::new();
+
+    // General section
+    result.push_str("[General]\n");
+    result.push_str("loglevel = notify\n");
+    result.push_str("dns-server = 223.5.5.5, 114.114.114.114\n");
+    result.push_str("allow-wifi-access = false\n");
+    result.push_str("skip-proxy = 127.0.0.1, 192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12, localhost, *.local\n");
+    result.push_str("ipv6 = false\n");
+    result.push_str("test-timeout = 5\n");
+    result.push_str("proxy-test-url = http://www.gstatic.com/generate_204\n");
+    result.push('\n');
+
+    // Proxy section
+    result.push_str("[Proxy]\n");
+    for proxy in proxies {
+        let line = surge_proxy_line(proxy);
+        result.push_str(&line);
+        result.push('\n');
+    }
+    result.push('\n');
+
+    // Proxy Group section
+    result.push_str("[Proxy Group]\n");
+
+    let proxy_list: Vec<String> = proxies.iter().map(|p| p.name().to_string()).collect();
+    let proxy_str = proxy_list.join(", ");
+
+    result.push_str(&format!("Proxy = selector, DIRECT, REJECT, {}\n", proxy_str));
+    result.push('\n');
+
+    // Rules section
+    result.push_str("[Rule]\n");
+    result.push_str("PROTOCOL,DNS,DIRECT\n");
+    result.push_str("MATCH,Proxy\n");
+
+    result
+}
+
+/// Convert a proxy to Surge format line
+pub fn surge_proxy_line(proxy: &ProxyConfig) -> String {
+    match proxy {
+        ProxyConfig::ShadowSocks(ss) => {
+            format!(
+                "{} = ss, {}, {}, encrypt-method={}, password={}",
+                ss.name, ss.server, ss.port, ss.method, ss.password
+            )
+        }
+        ProxyConfig::VMess(vmess) => {
+            let mut params = Vec::new();
+            params.push(format!("username={}", vmess.uuid));
+
+            if let Some(ref tls) = vmess.tls {
+                params.push(format!("tls={}", if tls == "tls" { "true" } else { "false" }));
+            }
+
+            if let Some(ref sni) = vmess.sni {
+                params.push(format!("sni={}", sni));
+            }
+
+            params.push(format!("network={}", vmess.network));
+
+            if let Some(ref path) = vmess.path {
+                params.push(format!("ws-path={}", path));
+            }
+
+            format!(
+                "{} = vmess, {}, {}, {}",
+                vmess.name, vmess.server, vmess.port, params.join(", ")
+            )
+        }
+        ProxyConfig::Trojan(trojan) => {
+            let mut params = Vec::new();
+            params.push(format!("password={}", trojan.password));
+
+            if let Some(ref sni) = trojan.sni {
+                params.push(format!("sni={}", sni));
+            }
+
+            format!(
+                "{} = trojan, {}, {}, {}",
+                trojan.name, trojan.server, trojan.port, params.join(", ")
+            )
+        }
+        ProxyConfig::Hysteria2(hy2) => {
+            let mut params = Vec::new();
+            params.push(format!("password={}", hy2.password));
+
+            if let Some(ref sni) = hy2.sni {
+                params.push(format!("sni={}", sni));
+            }
+
+            format!(
+                "{} = hysteria2, {}, {}, {}",
+                hy2.name, hy2.server, hy2.port, params.join(", ")
+            )
+        }
+        _ => {
+            // For unsupported types, create a comment
+            format!("# {} (unsupported)", proxy.name())
+        }
+    }
+}
