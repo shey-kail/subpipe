@@ -2,7 +2,6 @@
 openwrt-sdk/
 **/*.rs.bk
 *.pdb
-Cargo.lock
 config.toml
 *.db
 *.sqlite
