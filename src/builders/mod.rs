@@ -161,27 +161,36 @@ pub fn build_simple_surge(proxies: &[ProxyConfig]) -> String {
 pub fn surge_proxy_line(proxy: &ProxyConfig) -> String {
     match proxy {
         ProxyConfig::ShadowSocks(ss) => {
+            let mut params = Vec::new();
+            params.push(format!("encrypt-method={}", ss.method));
+            params.push(format!("password={}", ss.password));
+
             format!(
-                "{} = ss, {}, {}, encrypt-method={}, password={}",
-                ss.name, ss.server, ss.port, ss.method, ss.password
+                "{} = ss, {}, {}, {}",
+                ss.name, ss.server, ss.port, params.join(", ")
             )
         }
         ProxyConfig::VMess(vmess) => {
             let mut params = Vec::new();
             params.push(format!("username={}", vmess.uuid));
+            params.push(format!("encrypt-method={}", vmess.security));
 
-            if let Some(ref tls) = vmess.tls {
-                params.push(format!("tls={}", if tls == "tls" { "true" } else { "false" }));
-            }
-
-            if let Some(ref sni) = vmess.sni {
-                params.push(format!("sni={}", sni));
+            if vmess.tls.as_deref() == Some("tls") {
+                params.push(format!("tls=true"));
+                if let Some(ref sni) = vmess.sni {
+                    params.push(format!("sni={}", sni));
+                }
             }
 
             params.push(format!("network={}", vmess.network));
 
-            if let Some(ref path) = vmess.path {
-                params.push(format!("ws-path={}", path));
+            if vmess.network == "ws" {
+                if let Some(ref path) = vmess.path {
+                    params.push(format!("ws-path={}", path));
+                }
+                if let Some(ref host) = vmess.host {
+                    params.push(format!("ws-headers=Host:{{{}}}", host));
+                }
             }
 
             format!(
@@ -195,6 +204,30 @@ pub fn surge_proxy_line(proxy: &ProxyConfig) -> String {
 
             if let Some(ref sni) = trojan.sni {
                 params.push(format!("sni={}", sni));
+            }
+
+            if let Some(ref alpn) = trojan.alpn {
+                params.push(format!("alpn={}", alpn));
+            }
+
+            if let Some(insecure) = trojan.insecure {
+                params.push(format!("insecure={}", insecure));
+            }
+
+            if let Some(ref network) = trojan.network {
+                params.push(format!("network={}", network));
+                if network == "ws" {
+                    if let Some(ref path) = trojan.path {
+                        params.push(format!("ws-path={}", path));
+                    }
+                    if let Some(ref host) = trojan.host {
+                        params.push(format!("ws-headers=Host:{{{}}}", host));
+                    }
+                } else if network == "grpc" {
+                    if let Some(ref path) = trojan.path {
+                        params.push(format!("grpc-service-name={}", path));
+                    }
+                }
             }
 
             format!(
