@@ -1,0 +1,8 @@
+/target/
+openwrt-sdk/
+**/*.rs.bk
+*.pdb
+config.toml
+*.db
+*.sqlite
+*.ipk
