@@ -231,6 +231,81 @@ pub fn surge_proxy_line(proxy: &ProxyConfig) -> String {
                 hy2.name, hy2.server, hy2.port, params.join(", ")
             )
         }
+        ProxyConfig::VLESS(vless) => {
+            let mut params = Vec::new();
+            params.push(format!("username={}", vless.uuid));
+
+            if !vless.flow.is_empty() {
+                params.push(format!("flow={}", vless.flow));
+            }
+
+            if let Some(ref network) = vless.network {
+                params.push(format!("network={}", network));
+            }
+
+            if let Some(ref sni) = vless.sni {
+                params.push(format!("sni={}", sni));
+            }
+
+            if let Some(ref host) = vless.host {
+                params.push(format!("host={}", host));
+            }
+
+            if let Some(ref fp) = vless.fp {
+                params.push(format!("tls-fingerprint={}", fp));
+            }
+
+            if let Some(ref alpn) = vless.alpn {
+                params.push(format!("alpn={}", alpn));
+            }
+
+            if let Some(ref pbk) = vless.pbk {
+                params.push(format!("pbk={}", pbk));
+            }
+
+            if let Some(ref sid) = vless.sid {
+                params.push(format!("short-id={}", sid));
+            }
+
+            format!(
+                "{} = vless, {}, {}, {}",
+                vless.name, vless.server, vless.port, params.join(", ")
+            )
+        }
+        ProxyConfig::TUIC(tuic) => {
+            let mut params = Vec::new();
+            params.push(format!("uuid={}", tuic.uuid));
+            params.push(format!("password={}", tuic.password));
+
+            if let Some(ref congestion) = tuic.congestion {
+                params.push(format!("congestion-control={}", congestion));
+            }
+
+            if let Some(ref udp_relay_mode) = tuic.udp_relay_mode {
+                params.push(format!("udp-relay-mode={}", udp_relay_mode));
+            }
+
+            if let Some(ref sni) = tuic.sni {
+                params.push(format!("sni={}", sni));
+            }
+
+            if let Some(ref alpn) = tuic.alpn {
+                params.push(format!("alpn={}", alpn));
+            }
+
+            if let Some(disable_sni) = tuic.disable_sni {
+                params.push(format!("disable-sni={}", disable_sni));
+            }
+
+            if let Some(zero_rtt) = tuic.zero_rtt_handshake {
+                params.push(format!("zero-rtt-handshake={}", zero_rtt));
+            }
+
+            format!(
+                "{} = tuic, {}, {}, {}",
+                tuic.name, tuic.server, tuic.port, params.join(", ")
+            )
+        }
         _ => {
             // For unsupported types, create a comment
             format!("# {} (unsupported)", proxy.name())
