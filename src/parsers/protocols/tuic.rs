@@ -182,6 +182,34 @@ impl TUICConfig {
             );
         }
 
+        if let Some(ref alpn) = self.alpn {
+            proxy.insert(
+                serde_yaml::Value::String("alpn".to_string()),
+                serde_yaml::Value::String(alpn.clone())
+            );
+        }
+
+        if let Some(disable_sni) = self.disable_sni {
+            proxy.insert(
+                serde_yaml::Value::String("disable-sni".to_string()),
+                serde_yaml::Value::Bool(disable_sni)
+            );
+        }
+
+        if let Some(zero_rtt) = self.zero_rtt_handshake {
+            proxy.insert(
+                serde_yaml::Value::String("zero-rtt-handshake".to_string()),
+                serde_yaml::Value::Bool(zero_rtt)
+            );
+        }
+
+        if let Some(ref udp_relay_mode) = self.udp_relay_mode {
+            proxy.insert(
+                serde_yaml::Value::String("udp-relay-mode".to_string()),
+                serde_yaml::Value::String(udp_relay_mode.clone())
+            );
+        }
+
         serde_yaml::Value::Mapping(proxy)
     }
 }

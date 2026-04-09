@@ -139,6 +139,21 @@ impl VMessConfig {
             }
         }
 
+        if self.network == "ws" {
+            if let Some(ref path) = self.path {
+                proxy.insert(
+                    serde_yaml::Value::String("ws-path".to_string()),
+                    serde_yaml::Value::String(path.clone())
+                );
+            }
+            if let Some(ref host) = self.host {
+                proxy.insert(
+                    serde_yaml::Value::String("ws-headers".to_string()),
+                    serde_yaml::Value::String(format!("Host:{}", host))
+                );
+            }
+        }
+
         serde_yaml::Value::Mapping(proxy)
     }
 }

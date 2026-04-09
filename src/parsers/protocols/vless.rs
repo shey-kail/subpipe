@@ -260,6 +260,61 @@ impl VLESSConfig {
                     serde_yaml::Value::String(sni.clone())
                 );
             }
+            if let Some(ref fp) = self.fp {
+                proxy.insert(
+                    serde_yaml::Value::String("client-fingerprint".to_string()),
+                    serde_yaml::Value::String(fp.clone())
+                );
+            }
+            if let Some(ref alpn) = self.alpn {
+                proxy.insert(
+                    serde_yaml::Value::String("alpn".to_string()),
+                    serde_yaml::Value::String(alpn.clone())
+                );
+            }
+            if self.security == "reality" {
+                if let Some(ref pbk) = self.pbk {
+                    proxy.insert(
+                        serde_yaml::Value::String("reality-pbk".to_string()),
+                        serde_yaml::Value::String(pbk.clone())
+                    );
+                }
+                if let Some(ref sid) = self.sid {
+                    proxy.insert(
+                        serde_yaml::Value::String("reality-short-id".to_string()),
+                        serde_yaml::Value::String(sid.clone())
+                    );
+                }
+            }
+        }
+
+        if let Some(ref network) = self.network {
+            proxy.insert(
+                serde_yaml::Value::String("network".to_string()),
+                serde_yaml::Value::String(network.clone())
+            );
+
+            if network == "ws" {
+                if let Some(ref path) = self.path {
+                    proxy.insert(
+                        serde_yaml::Value::String("ws-path".to_string()),
+                        serde_yaml::Value::String(path.clone())
+                    );
+                }
+                if let Some(ref host) = self.host {
+                    proxy.insert(
+                        serde_yaml::Value::String("ws-headers".to_string()),
+                        serde_yaml::Value::String(format!("Host:{}", host))
+                    );
+                }
+            } else if network == "grpc" {
+                if let Some(ref path) = self.path {
+                    proxy.insert(
+                        serde_yaml::Value::String("grpc-service-name".to_string()),
+                        serde_yaml::Value::String(path.clone())
+                    );
+                }
+            }
         }
 
         serde_yaml::Value::Mapping(proxy)

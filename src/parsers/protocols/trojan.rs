@@ -192,6 +192,49 @@ impl TrojanConfig {
             );
         }
 
+        if let Some(ref alpn) = self.alpn {
+            proxy.insert(
+                serde_yaml::Value::String("alpn".to_string()),
+                serde_yaml::Value::String(alpn.clone())
+            );
+        }
+
+        if let Some(insecure) = self.insecure {
+            proxy.insert(
+                serde_yaml::Value::String("skip-cert-verify".to_string()),
+                serde_yaml::Value::Bool(insecure)
+            );
+        }
+
+        if let Some(ref network) = self.network {
+            proxy.insert(
+                serde_yaml::Value::String("network".to_string()),
+                serde_yaml::Value::String(network.clone())
+            );
+
+            if network == "ws" {
+                if let Some(ref path) = self.path {
+                    proxy.insert(
+                        serde_yaml::Value::String("ws-path".to_string()),
+                        serde_yaml::Value::String(path.clone())
+                    );
+                }
+                if let Some(ref host) = self.host {
+                    proxy.insert(
+                        serde_yaml::Value::String("ws-headers".to_string()),
+                        serde_yaml::Value::String(format!("Host:{}", host))
+                    );
+                }
+            } else if network == "grpc" {
+                if let Some(ref path) = self.path {
+                    proxy.insert(
+                        serde_yaml::Value::String("grpc-service-name".to_string()),
+                        serde_yaml::Value::String(path.clone())
+                    );
+                }
+            }
+        }
+
         serde_yaml::Value::Mapping(proxy)
     }
 }
