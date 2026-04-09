@@ -21,7 +21,9 @@ pub struct TrojanConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub alpn: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub insecure: Option<bool>,
+    pub allow_insecure: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peer: Option<String>,
 }
 
 impl TrojanConfig {
@@ -85,7 +87,8 @@ impl TrojanConfig {
         let host = params.get("host").map(|s| s.as_str()).map(|s| s.to_string());
         let sni = params.get("sni").map(|s| s.as_str()).map(|s| urlencoding::decode(s).unwrap_or_else(|_| s.to_string().into()).to_string());
         let alpn = params.get("alpn").map(|s| s.as_str()).map(|s| urlencoding::decode(s).unwrap_or_else(|_| s.to_string().into()).to_string());
-        let insecure = params.get("insecure").and_then(|s| {
+        // allowInsecure is used in Trojan URLs (not "insecure")
+        let allow_insecure = params.get("allowInsecure").and_then(|s| {
             if s == "1" || s == "true" {
                 Some(true)
             } else if s == "0" || s == "false" {
@@ -94,6 +97,8 @@ impl TrojanConfig {
                 None
             }
         });
+        // peer is used for gRPC service_name in Trojan URLs
+        let peer = params.get("peer").map(|s| s.as_str()).map(|s| urlencoding::decode(s).unwrap_or_else(|_| s.to_string().into()).to_string());
 
         Ok(TrojanConfig {
             name,
@@ -105,7 +110,8 @@ impl TrojanConfig {
             host,
             sni,
             alpn,
-            insecure,
+            allow_insecure,
+            peer,
         })
     }
 
@@ -136,14 +142,17 @@ impl TrojanConfig {
                 let mut transport = serde_json::json!({
                     "type": "grpc",
                 });
-                if let Some(ref path) = self.path {
+                // peer parameter is used as service_name in Trojan URLs
+                if let Some(ref peer) = self.peer {
+                    transport["service_name"] = serde_json::json!(peer);
+                } else if let Some(ref path) = self.path {
                     transport["service_name"] = serde_json::json!(path);
                 }
                 outbound["transport"] = transport;
             }
         }
 
-        if self.sni.is_some() || self.alpn.is_some() || self.insecure.is_some() {
+        if self.sni.is_some() || self.alpn.is_some() || self.allow_insecure.is_some() {
             let mut tls_config = serde_json::json!({
                 "enabled": true
             });
@@ -153,8 +162,8 @@ impl TrojanConfig {
             if let Some(ref alpn) = self.alpn {
                 tls_config["alpn"] = serde_json::json!([alpn]);
             }
-            if let Some(insecure) = self.insecure {
-                tls_config["insecure"] = serde_json::json!(insecure);
+            if let Some(allow_insecure) = self.allow_insecure {
+                tls_config["insecure"] = serde_json::json!(allow_insecure);
             }
             outbound["tls"] = tls_config;
         }
@@ -199,10 +208,10 @@ impl TrojanConfig {
             );
         }
 
-        if let Some(insecure) = self.insecure {
+        if let Some(allow_insecure) = self.allow_insecure {
             proxy.insert(
                 serde_yaml::Value::String("skip-cert-verify".to_string()),
-                serde_yaml::Value::Bool(insecure)
+                serde_yaml::Value::Bool(allow_insecure)
             );
         }
 
@@ -226,7 +235,13 @@ impl TrojanConfig {
                     );
                 }
             } else if network == "grpc" {
-                if let Some(ref path) = self.path {
+                // peer parameter is used as service_name in Trojan URLs
+                if let Some(ref peer) = self.peer {
+                    proxy.insert(
+                        serde_yaml::Value::String("grpc-service-name".to_string()),
+                        serde_yaml::Value::String(peer.clone())
+                    );
+                } else if let Some(ref path) = self.path {
                     proxy.insert(
                         serde_yaml::Value::String("grpc-service-name".to_string()),
                         serde_yaml::Value::String(path.clone())

@@ -210,8 +210,8 @@ pub fn surge_proxy_line(proxy: &ProxyConfig) -> String {
                 params.push(format!("alpn={}", alpn));
             }
 
-            if let Some(insecure) = trojan.insecure {
-                params.push(format!("insecure={}", insecure));
+            if let Some(allow_insecure) = trojan.allow_insecure {
+                params.push(format!("allowInsecure={}", allow_insecure));
             }
 
             if let Some(ref network) = trojan.network {
@@ -224,7 +224,10 @@ pub fn surge_proxy_line(proxy: &ProxyConfig) -> String {
                         params.push(format!("ws-headers=Host:{{{}}}", host));
                     }
                 } else if network == "grpc" {
-                    if let Some(ref path) = trojan.path {
+                    // peer is used for grpc service_name in Trojan URLs
+                    if let Some(ref peer) = trojan.peer {
+                        params.push(format!("peer={}", peer));
+                    } else if let Some(ref path) = trojan.path {
                         params.push(format!("grpc-service-name={}", path));
                     }
                 }
