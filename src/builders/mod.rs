@@ -206,8 +206,24 @@ pub fn surge_proxy_line(proxy: &ProxyConfig) -> String {
             let mut params = Vec::new();
             params.push(format!("password={}", hy2.password));
 
+            if let Some(ref obfs) = hy2.obfs {
+                params.push(format!("obfs={}", obfs));
+            }
+
+            if let Some(ref obfs_password) = hy2.obfs_password {
+                params.push(format!("obfs-password={}", obfs_password));
+            }
+
             if let Some(ref sni) = hy2.sni {
                 params.push(format!("sni={}", sni));
+            }
+
+            if let Some(insecure) = hy2.insecure {
+                params.push(format!("insecure={}", insecure));
+            }
+
+            if let Some(ref alpn) = hy2.alpn {
+                params.push(format!("alpn={}", alpn));
             }
 
             format!(
