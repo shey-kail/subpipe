@@ -4,6 +4,39 @@ use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Helper function to parse URL query parameters into a HashMap
+fn parse_query_params(query: &str) -> HashMap<String, String> {
+    let mut params = HashMap::new();
+    for pair in query.split('&') {
+        if pair.is_empty() {
+            continue;
+        }
+        let kv: Vec<&str> = pair.splitn(2, '=').collect();
+        if kv.len() == 2 {
+            params.insert(kv[0].to_string(), kv[1].to_string());
+        }
+    }
+    params
+}
+
+/// Helper function to parse boolean values from strings (supports 0/1/true/false)
+fn parse_bool(s: &str) -> Option<bool> {
+    if s == "1" || s == "true" {
+        Some(true)
+    } else if s == "0" || s == "false" {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+/// Helper function to URL decode a string
+fn url_decode(s: &str) -> String {
+    urlencoding::decode(s)
+        .unwrap_or_else(|_| s.to_string().into())
+        .to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Hysteria2Config {
     pub name: String,
@@ -37,18 +70,16 @@ impl Hysteria2Config {
             6 // hy2://
         };
         let without_scheme = &url[scheme_len..];
-        
+
         // Parse hysteria2://password@server:port?params#name
-        let (main_part, fragment) = if without_scheme.contains('#') {
-            let parts: Vec<&str> = without_scheme.splitn(2, '#').collect();
-            (parts[0], Some(parts[1]))
+        let (main_part, fragment) = if let Some(idx) = without_scheme.find('#') {
+            (&without_scheme[..idx], Some(&without_scheme[idx + 1..]))
         } else {
             (without_scheme, None)
         };
 
-        let (password_server_port, query_part) = if main_part.contains('?') {
-            let parts: Vec<&str> = main_part.splitn(2, '?').collect();
-            (parts[0], Some(parts[1]))
+        let (password_server_port, query_part) = if let Some(idx) = main_part.find('?') {
+            (&main_part[..idx], Some(&main_part[idx + 1..]))
         } else {
             (main_part, None)
         };
@@ -58,9 +89,7 @@ impl Hysteria2Config {
             bail!("Invalid Hysteria2 URL format");
         }
 
-        let password = urlencoding::decode(password_host_port[0])
-            .unwrap_or_else(|_| password_host_port[0].to_string().into())
-            .to_string();
+        let password = url_decode(password_host_port[0]);
 
         // Extract host:port from the string (before any path/query)
         // The format is host:port/path?query - we only want host:port
@@ -76,43 +105,22 @@ impl Hysteria2Config {
         let port = port_str.parse::<u16>()?;
 
         // Parse query parameters
-        let mut params = HashMap::new();
-        if let Some(query) = query_part {
-            for pair in query.split('&') {
-                let kv: Vec<&str> = pair.splitn(2, '=').collect();
-                if kv.len() == 2 {
-                    params.insert(kv[0].to_string(), kv[1].to_string());
-                }
-            }
-        }
+        let params = query_part.map(parse_query_params).unwrap_or_default();
 
         let name = fragment
-            .map(|f| urlencoding::decode(f).unwrap_or_else(|_| f.to_string().into()).to_string())
-            .unwrap_or("Hysteria2".to_string());
-        let obfs = params.get("obfs").map(|s| s.as_str()).map(|s| urlencoding::decode(s).unwrap_or_else(|_| s.to_string().into()).to_string());
-        let obfs_password = params.get("obfs-password").map(|s| s.as_str()).map(|s| urlencoding::decode(s).unwrap_or_else(|_| s.to_string().into()).to_string());
-        let sni = params.get("sni").map(|s| s.as_str()).map(|s| urlencoding::decode(s).unwrap_or_else(|_| s.to_string().into()).to_string());
-        let insecure = params.get("insecure").and_then(|s| {
-            if s == "1" || s == "true" {
-                Some(true)
-            } else if s == "0" || s == "false" {
-                Some(false)
-            } else {
-                None
-            }
-        });
-        let alpn = params.get("alpn").map(|s| s.as_str()).map(|s| urlencoding::decode(s).unwrap_or_else(|_| s.to_string().into()).to_string());
+            .map(url_decode)
+            .unwrap_or_else(|| "Hysteria2".to_string());
 
         Ok(Hysteria2Config {
             name,
             server,
             port,
             password,
-            obfs,
-            obfs_password,
-            sni,
-            insecure,
-            alpn,
+            obfs: params.get("obfs").map(|s| url_decode(s)),
+            obfs_password: params.get("obfs-password").map(|s| url_decode(s)),
+            sni: params.get("sni").map(|s| url_decode(s)),
+            insecure: params.get("insecure").and_then(|s| parse_bool(s)),
+            alpn: params.get("alpn").map(|s| url_decode(s)),
         })
     }
 
@@ -177,6 +185,20 @@ impl Hysteria2Config {
             serde_yaml::Value::String(self.password.clone())
         );
 
+        if let Some(ref obfs) = self.obfs {
+            proxy.insert(
+                serde_yaml::Value::String("obfs".to_string()),
+                serde_yaml::Value::String(obfs.clone())
+            );
+        }
+
+        if let Some(ref obfs_password) = self.obfs_password {
+            proxy.insert(
+                serde_yaml::Value::String("obfs-password".to_string()),
+                serde_yaml::Value::String(obfs_password.clone())
+            );
+        }
+
         if let Some(ref sni) = self.sni {
             proxy.insert(
                 serde_yaml::Value::String("sni".to_string()),
@@ -188,6 +210,13 @@ impl Hysteria2Config {
             proxy.insert(
                 serde_yaml::Value::String("skip-cert-verify".to_string()),
                 serde_yaml::Value::Bool(insecure)
+            );
+        }
+
+        if let Some(ref alpn) = self.alpn {
+            proxy.insert(
+                serde_yaml::Value::String("alpn".to_string()),
+                serde_yaml::Value::String(alpn.clone())
             );
         }
 
