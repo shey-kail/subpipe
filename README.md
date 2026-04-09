@@ -2,6 +2,12 @@
 
 > A lightweight subscription converter, rewritten in Rust.
 
+## Philosophy
+
+This project is born to **prevent subscription leakage**. By converting subscription content locally, your subscription link never leaves your machine — unlike browser-based converters that send your subscription to third-party servers.
+
+Following the **Unix philosophy**: do one thing and do it well. Subpipe only converts subscription content to various proxy client formats, nothing more.
+
 ## Features
 
 - 🚀 High performance, low memory footprint
