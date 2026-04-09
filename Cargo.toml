@@ -1,6 +1,6 @@
 [package]
 name = "subpipe"
-version = "2.0.1"
+version = "2.1.0"
 edition = "2021"
 authors = ["sheee"]
 description = "A lightweight subscription converter for proxy protocols"
