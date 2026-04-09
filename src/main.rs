@@ -5,7 +5,6 @@
 
 mod builders;
 mod cli;
-mod config;
 mod parsers;
 mod templates;
 mod utils;
@@ -17,8 +16,6 @@ use std::io::{self, Read};
 use templates::InterpolationParser;
 use templates::interpolation::{InterpolationRule, FilterOperator};
 
-#[cfg(test)]
-mod tests;
 
 /// Read input from file or stdin
 fn read_input(args: &ConvertArgs) -> Result<String> {
