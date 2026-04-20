@@ -24,6 +24,8 @@ pub struct TUICConfig {
     pub disable_sni: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub zero_rtt_handshake: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow_insecure: Option<bool>,
 }
 
 impl TUICConfig {
@@ -92,6 +94,15 @@ impl TUICConfig {
         let alpn = params.get("alpn").map(|s| s.as_str()).map(|s| s.to_string());
         let disable_sni = params.get("disable_sni").and_then(|s| s.parse::<bool>().ok());
         let zero_rtt_handshake = params.get("zero_rtt_handshake").and_then(|s| s.parse::<bool>().ok());
+        let allow_insecure = params.get("allow_insecure").and_then(|s| {
+            if s == "1" || s == "true" {
+                Some(true)
+            } else if s == "0" || s == "false" {
+                Some(false)
+            } else {
+                None
+            }
+        });
 
         Ok(TUICConfig {
             name,
@@ -105,6 +116,7 @@ impl TUICConfig {
             alpn,
             disable_sni,
             zero_rtt_handshake,
+            allow_insecure,
         })
     }
 
@@ -135,6 +147,9 @@ impl TUICConfig {
         }
         if let Some(zero_rtt) = self.zero_rtt_handshake {
             tls_config["zero_rtt_handshake"] = serde_json::json!(zero_rtt);
+        }
+        if let Some(allow_insecure) = self.allow_insecure {
+            tls_config["allow_insecure"] = serde_json::json!(allow_insecure);
         }
         outbound["tls"] = tls_config;
 
@@ -207,6 +222,13 @@ impl TUICConfig {
             proxy.insert(
                 serde_yaml::Value::String("udp-relay-mode".to_string()),
                 serde_yaml::Value::String(udp_relay_mode.clone())
+            );
+        }
+
+        if let Some(allow_insecure) = self.allow_insecure {
+            proxy.insert(
+                serde_yaml::Value::String("allow-insecure".to_string()),
+                serde_yaml::Value::Bool(allow_insecure)
             );
         }
 

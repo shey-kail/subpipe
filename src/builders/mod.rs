@@ -337,6 +337,10 @@ pub fn surge_proxy_line(proxy: &ProxyConfig) -> String {
                 params.push(format!("zero-rtt-handshake={}", zero_rtt));
             }
 
+            if let Some(allow_insecure) = tuic.allow_insecure {
+                params.push(format!("allow-insecure={}", allow_insecure));
+            }
+
             format!(
                 "{} = tuic, {}, {}, {}",
                 tuic.name, tuic.server, tuic.port, params.join(", ")
