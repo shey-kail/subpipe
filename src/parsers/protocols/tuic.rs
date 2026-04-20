@@ -138,7 +138,9 @@ impl TUICConfig {
             outbound["udp_relay_mode"] = serde_json::json!(udp_relay_mode);
         }
 
-        let mut tls_config = serde_json::json!({});
+        let mut tls_config = serde_json::json!({
+            "enabled": true
+        });
         if let Some(ref sni) = self.sni {
             tls_config["server_name"] = serde_json::json!(sni);
         }
