@@ -31,6 +31,10 @@ pub struct VLESSConfig {
     pub pbk: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sid: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub packet_encoding: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub insecure: Option<bool>,
 }
 
 impl VLESSConfig {
@@ -112,6 +116,16 @@ impl VLESSConfig {
         let alpn = params.get("alpn").cloned();
         let pbk = params.get("pbk").cloned();
         let sid = params.get("sid").cloned();
+        let packet_encoding = params.get("packetEncoding").cloned();
+        let insecure = params.get("insecure").and_then(|s| {
+            if s == "1" || s == "true" {
+                Some(true)
+            } else if s == "0" || s == "false" {
+                Some(false)
+            } else {
+                None
+            }
+        });
 
         Ok(VLESSConfig {
             name,
@@ -129,6 +143,8 @@ impl VLESSConfig {
             alpn,
             pbk,
             sid,
+            packet_encoding,
+            insecure,
         })
     }
 
@@ -149,15 +165,15 @@ impl VLESSConfig {
             if self.security == "tls" || self.security == "reality" {
                 let mut tls_config = serde_json::json!({
                     "enabled": true,
-                    "insecure": false,
+                    "insecure": self.insecure.unwrap_or(false),
                 });
-                
+
                 if let Some(ref sni) = self.sni {
                     tls_config["server_name"] = serde_json::json!(sni);
                 } else if let Some(ref host) = self.host {
                     tls_config["server_name"] = serde_json::json!(host);
                 }
-                
+
                 if let Some(ref fp) = self.fp {
                     tls_config["utls"] = serde_json::json!({
                         "enabled": true,
@@ -182,13 +198,20 @@ impl VLESSConfig {
                     }
                     tls_config["reality"] = reality_config;
                 }
-                
+
                 if let Some(ref alpn) = self.alpn {
                     tls_config["alpn"] = serde_json::json!(alpn.split(',').collect::<Vec<&str>>());
                 }
-                
+
                 outbound["tls"] = tls_config;
             }
+        }
+
+        // Add packet_encoding for xudp (used with xtls-rprx-vision flow)
+        if let Some(ref packet_encoding) = self.packet_encoding {
+            outbound["packet_encoding"] = serde_json::json!(packet_encoding);
+        } else if self.flow == "xtls-rprx-vision" {
+            outbound["packet_encoding"] = serde_json::json!("xudp");
         }
 
         if let Some(ref network) = self.network {

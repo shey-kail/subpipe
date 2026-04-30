@@ -12,6 +12,7 @@ pub enum ProxyConfig {
     Hysteria2(Hysteria2Config),
     Trojan(TrojanConfig),
     TUIC(TUICConfig),
+    AnyTLS(AnyTLSConfig),
 }
 
 impl ProxyConfig {
@@ -23,6 +24,7 @@ impl ProxyConfig {
             ProxyConfig::Hysteria2(c) => &c.name,
             ProxyConfig::Trojan(c) => &c.name,
             ProxyConfig::TUIC(c) => &c.name,
+            ProxyConfig::AnyTLS(c) => &c.name,
         }
     }
 
@@ -58,6 +60,7 @@ impl ProxyConfig {
             ProxyConfig::Hysteria2(c) => c.to_singbox(),
             ProxyConfig::Trojan(c) => c.to_singbox(),
             ProxyConfig::TUIC(c) => c.to_singbox(),
+            ProxyConfig::AnyTLS(c) => c.to_singbox(),
         }
     }
 
@@ -69,6 +72,7 @@ impl ProxyConfig {
             ProxyConfig::Hysteria2(c) => c.to_clash(),
             ProxyConfig::Trojan(c) => c.to_clash(),
             ProxyConfig::TUIC(c) => c.to_clash(),
+            ProxyConfig::AnyTLS(c) => c.to_clash(),
         }
     }
 }
@@ -104,6 +108,8 @@ impl ProxyParser {
             Ok(ProxyConfig::Trojan(TrojanConfig::parse(url)?))
         } else if url.starts_with("tuic://") {
             Ok(ProxyConfig::TUIC(TUICConfig::parse(url)?))
+        } else if url.starts_with("anytls://") {
+            Ok(ProxyConfig::AnyTLS(AnyTLSConfig::parse(url)?))
         } else {
             bail!("Unknown proxy protocol: {}", url.split("://").next().unwrap_or("unknown"))
         }
