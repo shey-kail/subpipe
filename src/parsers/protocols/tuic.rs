@@ -88,7 +88,8 @@ impl TUICConfig {
             .as_ref()
             .map(|n| urlencoding::decode(n).unwrap_or_else(|_| n.to_string().into()).to_string())
             .unwrap_or_else(|| "TUIC".to_string());
-        let congestion = params.get("congestion_control").map(|s| s.as_str()).map(|s| s.to_string());
+        let congestion = params.get("congestion_control").or_else(|| params.get("congestion-control"))
+            .map(|s| s.as_str()).map(|s| s.to_string());
         let udp_relay_mode = params.get("udp_relay_mode").map(|s| s.as_str()).map(|s| s.to_string());
         let sni = params.get("sni").map(|s| s.as_str()).map(|s| s.to_string());
         let alpn = params.get("alpn").map(|s| s.as_str()).map(|s| s.to_string());
@@ -144,6 +145,9 @@ impl TUICConfig {
         });
         if let Some(ref sni) = self.sni {
             tls_config["server_name"] = serde_json::json!(sni);
+        }
+        if let Some(ref alpn) = self.alpn {
+            tls_config["alpn"] = serde_json::json!([alpn]);
         }
         if let Some(disable_sni) = self.disable_sni {
             tls_config["disable_sni"] = serde_json::json!(disable_sni);
