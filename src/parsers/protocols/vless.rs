@@ -109,8 +109,8 @@ impl VLESSConfig {
         let security = params.get("security").cloned().unwrap_or_default();
         let encryption = params.get("encryption").cloned();
         let network = params.get("type").cloned();
-        let path = params.get("path").cloned();
-        let host = params.get("host").cloned();
+        let path = params.get("path").map(|s| urlencoding::decode(s).unwrap_or_else(|_| s.to_string().into()).to_string());
+        let host = params.get("host").map(|s| urlencoding::decode(s).unwrap_or_else(|_| s.to_string().into()).to_string());
         let sni = params.get("sni").cloned();
         let fp = params.get("fp").cloned();
         let alpn = params.get("alpn").cloned();
