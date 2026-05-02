@@ -53,6 +53,8 @@ pub struct Hysteria2Config {
     pub insecure: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub alpn: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub server_ports: Option<String>,
 }
 
 impl Hysteria2Config {
@@ -121,6 +123,10 @@ impl Hysteria2Config {
             sni: params.get("sni").map(|s| url_decode(s)),
             insecure: params.get("insecure").and_then(|s| parse_bool(s)),
             alpn: params.get("alpn").map(|s| url_decode(s)),
+            server_ports: params.get("mport").map(|s| {
+                // Convert mport format (60000-65530) to singbox format (60000:65530)
+                s.replace("-", ":")
+            }),
         })
     }
 
@@ -157,6 +163,10 @@ impl Hysteria2Config {
                 tls_config["alpn"] = serde_json::json!([alpn]);
             }
             outbound["tls"] = tls_config;
+        }
+
+        if let Some(ref server_ports) = self.server_ports {
+            outbound["server_ports"] = serde_json::json!([server_ports]);
         }
 
         outbound

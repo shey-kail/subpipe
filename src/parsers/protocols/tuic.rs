@@ -13,17 +13,21 @@ pub struct TUICConfig {
     pub uuid: String,
     pub password: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub congestion: Option<String>,
+    pub congestion_control: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub udp_relay_mode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub udp_over_stream: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub zero_rtt_handshake: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub heartbeat: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sni: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub alpn: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disable_sni: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub zero_rtt_handshake: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_insecure: Option<bool>,
 }
@@ -88,13 +92,15 @@ impl TUICConfig {
             .as_ref()
             .map(|n| urlencoding::decode(n).unwrap_or_else(|_| n.to_string().into()).to_string())
             .unwrap_or_else(|| "TUIC".to_string());
-        let congestion = params.get("congestion_control").or_else(|| params.get("congestion-control"))
+        let congestion_control = params.get("congestion_control").or_else(|| params.get("congestion-control"))
             .map(|s| s.as_str()).map(|s| s.to_string());
         let udp_relay_mode = params.get("udp_relay_mode").map(|s| s.as_str()).map(|s| s.to_string());
+        let udp_over_stream = params.get("udp_over_stream").and_then(|s| s.parse::<bool>().ok());
         let sni = params.get("sni").map(|s| s.as_str()).map(|s| s.to_string());
         let alpn = params.get("alpn").map(|s| s.as_str()).map(|s| s.to_string());
         let disable_sni = params.get("disable_sni").and_then(|s| s.parse::<bool>().ok());
         let zero_rtt_handshake = params.get("zero_rtt_handshake").and_then(|s| s.parse::<bool>().ok());
+        let heartbeat = params.get("heartbeat").map(|s| s.as_str()).map(|s| s.to_string());
         let allow_insecure = params.get("allow_insecure").or_else(|| params.get("allowInsecure"))
             .and_then(|s| {
                 if s == "1" || s == "true" {
@@ -112,12 +118,14 @@ impl TUICConfig {
             port,
             uuid,
             password,
-            congestion,
+            congestion_control,
             udp_relay_mode,
+            udp_over_stream,
             sni,
             alpn,
             disable_sni,
             zero_rtt_handshake,
+            heartbeat,
             allow_insecure,
         })
     }
@@ -132,12 +140,16 @@ impl TUICConfig {
             "password": self.password,
         });
 
-        if let Some(ref congestion) = self.congestion {
-            outbound["congestion_control"] = serde_json::json!(congestion);
+        if let Some(ref congestion_control) = self.congestion_control {
+            outbound["congestion_control"] = serde_json::json!(congestion_control);
         }
 
         if let Some(ref udp_relay_mode) = self.udp_relay_mode {
             outbound["udp_relay_mode"] = serde_json::json!(udp_relay_mode);
+        }
+
+        if let Some(udp_over_stream) = self.udp_over_stream {
+            outbound["udp_over_stream"] = serde_json::json!(udp_over_stream);
         }
 
         let mut tls_config = serde_json::json!({
@@ -190,10 +202,17 @@ impl TUICConfig {
             serde_yaml::Value::String(self.password.clone())
         );
 
-        if let Some(ref congestion) = self.congestion {
+        if let Some(ref congestion_control) = self.congestion_control {
             proxy.insert(
                 serde_yaml::Value::String("congestion_control".to_string()),
-                serde_yaml::Value::String(congestion.clone())
+                serde_yaml::Value::String(congestion_control.clone())
+            );
+        }
+
+        if let Some(ref heartbeat) = self.heartbeat {
+            proxy.insert(
+                serde_yaml::Value::String("heartbeat".to_string()),
+                serde_yaml::Value::String(heartbeat.clone())
             );
         }
 

@@ -313,8 +313,8 @@ pub fn surge_proxy_line(proxy: &ProxyConfig) -> String {
             params.push(format!("uuid={}", tuic.uuid));
             params.push(format!("password={}", tuic.password));
 
-            if let Some(ref congestion) = tuic.congestion {
-                params.push(format!("congestion-control={}", congestion));
+            if let Some(ref congestion_control) = tuic.congestion_control {
+                params.push(format!("congestion-control={}", congestion_control));
             }
 
             if let Some(ref udp_relay_mode) = tuic.udp_relay_mode {
